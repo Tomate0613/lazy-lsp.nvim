@@ -1,40 +1,46 @@
 local helpers = require("lazy-lsp.helpers")
 
+local defaults = {
+  servers = require("lazy-lsp.servers"),
+  preferred_servers = {},
+  excluded_servers = {},
+  disabled_servers = {},
+}
+
 local function setup(opts)
-  local lspconfig = require("lspconfig")
-  local servers = require("lazy-lsp.servers")
-  local overrides = require("lazy-lsp.overrides")
-  for server, config in pairs(helpers.server_configs(lspconfig, servers, opts, overrides)) do
-    assert(config.filetypes, "server " .. server .. " does not provide filetypes and is not omitted")
+  opts = vim.tbl_deep_extend("force", defaults, opts)
 
-    -- Based on https://github.com/neovim/nvim-lspconfig/blob/d67715d3b746a19e951b6b0a99663fa909bb9e64/lua/lspconfig/configs.lua#L98-L112
-    -- Decided to avoid wildcard and only register when a server explicitly specifies filetypes
-    local lsp_group = vim.api.nvim_create_augroup("lazy_lsp_setup", { clear = false })
-    local autocmd_id
-    autocmd_id = vim.api.nvim_create_autocmd("FileType", {
-      pattern = config.filetypes,
-      callback = function(opt)
-        -- We just need to setup the server once, remove autocmd so it does not run again.
-        vim.api.nvim_del_autocmd(autocmd_id)
+  for server, pkgs in pairs(opts.servers) do
+    if pkgs and pkgs ~= "" and not vim.tbl_contains(opts.excluded_servers, server) then
+      local config = vim.lsp.config[server]
 
-        local M = lspconfig[server]
-        M.setup(config)
+      if config ~= nil and type(config.cmd) == "table" then
+        vim.lsp.config(server, { cmd = helpers.in_shell(type(pkgs) == "string" and { pkgs } or pkgs, config.cmd) })
+      end
 
-        -- Since we setup inside autocmd callback, we need to help trigger autostart manually.
-        -- Since lspconfig sets up its own autocmd it will handle it in the future by itself.
-        if M.autostart then
-          vim.schedule(function()
-            M.manager:try_add(opt.buf)
-          end)
+      if config ~= nil and type(config.filetypes) == "table" then
+        local filetypes = vim.tbl_filter(function(lang)
+          return opts.preferred_servers[lang] == nil
+        end, config.filetypes)
+
+        for lang, preferred_servers in pairs(opts.preferred_servers) do
+          if vim.tbl_contains(preferred_servers, server) then
+            table.insert(filetypes, lang)
+          end
         end
-      end,
-      group = lsp_group,
-      desc = string.format("Lazily setup %s lsp server", server),
-    })
+
+        vim.lsp.config(server, { filetypes = filetypes })
+      end
+
+      if not vim.tbl_contains(opts.disabled_servers, server) then
+        vim.lsp.enable(server)
+      end
+    end
   end
 end
 
 return {
   setup = setup,
   in_shell = helpers.in_shell,
+  nix_store_path = helpers.nix_store_path,
 }

@@ -68,156 +68,39 @@ local function in_shell(nix_pkgs, cmd)
   return nix_cmd
 end
 
--- should rename to something indicating that it is for an individual config
-local function process_config(
-  lang_config,
-  user_config,
-  default_config,
-  nix_pkg,
-  filetypes,
-  config_override,
-  prefer_local
-)
-  local config = vim.tbl_extend(
-    "keep",
-    user_config or {},
-    { filetypes = filetypes },
-    config_override or {},
-    default_config,
-    lang_config.document_config.default_config
-  )
-
-  if nix_pkg ~= "" and config.cmd then
-    local original_on_new_config = config.on_new_config
-
-    config.on_new_config = function(new_config, root_path)
-      pcall(original_on_new_config, new_config, root_path)
-      -- Don't wrap with nix shell if user callback already wrapped it
-      if not vim.list_contains({ "nix", "nix-shell" }, new_config.cmd[1]) then
-        if prefer_local == false or vim.fn.executable(new_config.cmd[1]) == 0 then
-          local nix_pkgs = type(nix_pkg) == "string" and { nix_pkg } or nix_pkg
-          new_config.cmd = in_shell(nix_pkgs, new_config.cmd)
-        end
-      end
-    end
-
-    return config
-  elseif user_config then
-    config = vim.tbl_extend("keep", user_config, default_config)
-    return config
+---@param pkg string
+---@param callback fun(path: string)
+local function nix_store_path(pkg, callback)
+  if not nix_command_available() then
+    error("nix_store_path requires the nix command to be available")
   end
 
-  return nil
-end
+  local cmd = { "nix", "eval", "--raw", "nixpkgs#" .. pkg .. ".outPath" }
 
-local function is_config_available(lspconfig, server)
-  -- For deprecated servers we might get lspconfig entry, but without document_config
-  return lspconfig[server] and lspconfig[server].document_config
-end
-
-local function build_filetype_to_servers_index(servers, lspconfig)
-  local index = {}
-  for server, _ in pairs(servers) do
-    if is_config_available(lspconfig, server) then
-      local filetypes = lspconfig[server].document_config.default_config.filetypes
-      if filetypes then
-        for _, filetype in ipairs(filetypes) do
-          if not index[filetype] then
-            index[filetype] = {}
+  vim.fn.jobstart(cmd, {
+    stdout_buffered = true,
+    on_stdout = function(_, data)
+      if data and #data > 0 then
+        callback(vim.trim(data[1]))
+      end
+    end,
+    on_stderr = function(_, data)
+      if data then
+        local filtered = {}
+        for _, line in ipairs(data) do
+          if line ~= "" then
+            table.insert(filtered, line)
           end
-          table.insert(index[filetype], server)
         end
-      else
-        -- what would be a good way to log this?
-        -- print("no filetypes for", server)
+        if #filtered > 0 then
+          vim.notify("nix eval error: " .. table.concat(filtered, "\n"), vim.log.levels.ERROR)
+        end
       end
-    end
-  end
-  return index
-end
-
-local function build_server_to_filetypes_index(filetype_to_servers)
-  local index = {}
-  for filetype, servers in pairs(filetype_to_servers) do
-    for _, server in ipairs(servers) do
-      if not index[server] then
-        index[server] = {}
-      end
-      table.insert(index[server], filetype)
-    end
-  end
-  return index
-end
-
-local function enabled_filetypes_to_servers(servers, lspconfig, excluded_servers, preferred_servers)
-  local included_servers = {}
-  for server, nix_pkg in pairs(servers) do
-    -- check to exclude servers for which we don't have a nix package
-    if nix_pkg ~= "" then
-      included_servers[server] = true
-    end
-  end
-  for _, server in ipairs(excluded_servers) do
-    included_servers[server] = nil
-  end
-
-  local filetype_to_servers = build_filetype_to_servers_index(included_servers, lspconfig)
-  for filetype, filetype_servers in pairs(preferred_servers) do
-    filetype_servers = type(filetype_servers) == "string" and { filetype_servers } or filetype_servers
-    filetype_to_servers[filetype] = vim.tbl_filter(function(server)
-      return included_servers[server]
-    end, filetype_servers)
-  end
-  return filetype_to_servers
-end
-
-local function server_configs(lspconfig, servers, opts, overrides)
-  opts = opts or {}
-  local excluded_servers = opts.excluded_servers or {}
-  local default_config = opts.default_config or {}
-  local configs = opts.configs or {}
-  local preferred_servers = opts.preferred_servers or {}
-  local prefer_local = opts.prefer_local ~= false -- default: true
-
-  local filetype_to_servers = enabled_filetypes_to_servers(servers, lspconfig, excluded_servers, preferred_servers)
-  local server_to_filetypes = build_server_to_filetypes_index(filetype_to_servers)
-
-  local returned_configs = {}
-  for lsp, _ in pairs(server_to_filetypes) do
-    -- Check if a server is excluded first, so that we don't look up the config
-    -- and for deprecated servers we won't get a warning message.
-    if server_to_filetypes[lsp] and is_config_available(lspconfig, lsp) then
-      local nix_pkg = servers[lsp]
-      local lang_config = lspconfig[lsp]
-      local user_config = configs[lsp]
-      local config_override = overrides[lsp]
-
-      local config = process_config(
-        lang_config,
-        user_config,
-        default_config,
-        nix_pkg,
-        server_to_filetypes[lsp],
-        config_override,
-        prefer_local
-      )
-      if config then
-        returned_configs[lsp] = config
-      end
-    end
-  end
-  return returned_configs
+    end,
+  })
 end
 
 return {
-  server_configs = server_configs,
   in_shell = in_shell,
-  replace_first = replace_first,
-  -- Internal, only for testing
-  escape_shell_arg = escape_shell_arg,
-  escape_shell_args = escape_shell_args,
-  process_config = process_config,
-  build_filetype_to_servers_index = build_filetype_to_servers_index,
-  build_server_to_filetypes_index = build_server_to_filetypes_index,
-  enabled_filetypes_to_servers = enabled_filetypes_to_servers,
+  nix_store_path = nix_store_path,
 }
