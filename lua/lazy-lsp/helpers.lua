@@ -77,7 +77,7 @@ local function nix_store_path(pkg, callback, channel)
     error("nix_store_path requires the nix command to be available")
   end
 
-  local cmd = { "nix", "eval", "--raw", (channel or "nixpkgs") "#" .. pkg .. ".outPath" }
+  local cmd = { "nix", "eval", "--raw", (channel or "nixpkgs") .. "#" .. pkg .. ".outPath" }
 
   vim.fn.jobstart(cmd, {
     stdout_buffered = true,
