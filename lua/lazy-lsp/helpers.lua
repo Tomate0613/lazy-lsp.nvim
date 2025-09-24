@@ -44,8 +44,9 @@ end
 
 ---@param nix_pkgs string[]
 ---@param cmd string[]
+---@param channel string
 ---@return string[]
-local function in_shell(nix_pkgs, cmd)
+local function in_shell(nix_pkgs, cmd, channel)
   if #nix_pkgs == 0 then
     error("No nix pkg provided")
     return {}
@@ -53,9 +54,9 @@ local function in_shell(nix_pkgs, cmd)
 
   local nix_cmd = {}
   if nix_command_available() then
-    nix_cmd = { "nix", "--flake-registry", "", "shell" }
+    nix_cmd = { "nix", "shell" }
     for _, nix_pkg in ipairs(nix_pkgs) do
-      table.insert(nix_cmd, "nixpkgs#" .. nix_pkg)
+      table.insert(nix_cmd, channel .. "#" .. nix_pkg)
     end
     table.insert(nix_cmd, "--command")
     vim.list_extend(nix_cmd, cmd)
@@ -70,12 +71,13 @@ end
 
 ---@param pkg string
 ---@param callback fun(path: string)
-local function nix_store_path(pkg, callback)
+---@param channel string? Default: "nixpkgs"
+local function nix_store_path(pkg, callback, channel)
   if not nix_command_available() then
     error("nix_store_path requires the nix command to be available")
   end
 
-  local cmd = { "nix", "eval", "--raw", "nixpkgs#" .. pkg .. ".outPath" }
+  local cmd = { "nix", "eval", "--raw", (channel or "nixpkgs") "#" .. pkg .. ".outPath" }
 
   vim.fn.jobstart(cmd, {
     stdout_buffered = true,
@@ -93,7 +95,7 @@ local function nix_store_path(pkg, callback)
           end
         end
         if #filtered > 0 then
-          vim.notify("nix eval error: " .. table.concat(filtered, "\n"), vim.log.levels.ERROR)
+          vim.notify("nix eval: " .. table.concat(filtered, "\n"), vim.log.levels.WARN)
         end
       end
     end,

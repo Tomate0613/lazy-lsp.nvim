@@ -60,7 +60,7 @@ return {
     "crystalline",
     "crystal"
   },
-  csharp_ls = "csharp-ls",
+  csharp_ls = {"csharp-ls", "dotnet-sdk"},
   css_variables = "",
   cssls = "vscode-langservers-extracted",
   cssmodules_ls = "",

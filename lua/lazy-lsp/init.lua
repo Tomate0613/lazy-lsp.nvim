@@ -1,7 +1,9 @@
 local helpers = require("lazy-lsp.helpers")
+local overrides = require("lazy-lsp.overrides")
 
 local defaults = {
   servers = require("lazy-lsp.servers"),
+  channel = "nixpkgs",
   preferred_servers = {},
   excluded_servers = {},
   disabled_servers = {},
@@ -12,10 +14,10 @@ local function setup(opts)
 
   for server, pkgs in pairs(opts.servers) do
     if pkgs and pkgs ~= "" and not vim.tbl_contains(opts.excluded_servers, server) then
-      local config = vim.lsp.config[server]
+      local config = vim.tbl_deep_extend("force", vim.lsp.config[server] or {}, overrides[server] or {})
 
       if config ~= nil and type(config.cmd) == "table" then
-        vim.lsp.config(server, { cmd = helpers.in_shell(type(pkgs) == "string" and { pkgs } or pkgs, config.cmd) })
+        vim.lsp.config(server, { cmd = helpers.in_shell(type(pkgs) == "string" and { pkgs } or pkgs, config.cmd, opts.channel) })
       end
 
       if config ~= nil and type(config.filetypes) == "table" then
