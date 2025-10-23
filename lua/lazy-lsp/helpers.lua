@@ -25,16 +25,12 @@ local function nix_command_available()
   end
   cache_nix_command_available = false
 
-  local registry = vim.fn.system({ "nix", "--flake-registry", "", "registry", "list" })
+  local registry = vim.fn.system({ "nix", "registry", "list" })
   if vim.v.shell_error == 0 then
     for flake in vim.gsplit(registry, "\n") do
       local flake_url = string.match(flake, "^%S+ flake:nixpkgs (.*)")
       if flake_url then
-        -- And we won't accidentally fetch `nixpkgs-unstable` as it used to be.
-        -- Only since NixOS 24.05, system has its nixpkgs flake in the registry by default
-        if string.match(flake_url, "^path:") then
           cache_nix_command_available = true
-        end
         break
       end
     end
