@@ -25,7 +25,7 @@ local function nix_command_available()
   end
   cache_nix_command_available = false
 
-  local registry = vim.fn.system({ "nix", "registry", "list" })
+  local registry = vim.fn.system({ "nix", "registry", "list", "--offline" })
   if vim.v.shell_error == 0 then
     for flake in vim.gsplit(registry, "\n") do
       local flake_url = string.match(flake, "^%S+ flake:nixpkgs (.*)")
@@ -75,7 +75,7 @@ local function nix_store_path(pkg, callback, channel)
 
   local cmd = { "nix", "eval", "--raw", (channel or "nixpkgs") .. "#" .. pkg .. ".outPath" }
 
-  vim.fn.jobstart(cmd, {
+  vim.system(cmd, {
     stdout_buffered = true,
     on_stdout = function(_, data)
       if data and #data > 0 then
