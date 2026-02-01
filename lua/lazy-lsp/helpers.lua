@@ -75,7 +75,7 @@ local function nix_store_path(pkg, callback, channel)
 
   local cmd = { "nix", "eval", "--raw", (channel or "nixpkgs") .. "#" .. pkg .. ".outPath" }
 
-  vim.system(cmd, {
+  vim.fn.jobstart(cmd, {
     stdout_buffered = true,
     on_stdout = function(_, data)
       if data and #data > 0 then
