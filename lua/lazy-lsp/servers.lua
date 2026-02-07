@@ -265,7 +265,7 @@ return {
   pylyzer = "pylyzer",
   pyre = "",
   pyright = "pyright",
-  qmlls = "",
+  qmlls = "kdePackages.qtdeclarative",
   quick_lint_js = "quick-lint-js",
   r_language_server = "rPackages.languageserver",
   racket_langserver = "",
