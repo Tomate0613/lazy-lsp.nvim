@@ -9,15 +9,50 @@ local defaults = {
   disabled_servers = {},
 }
 
+local function is_list(t)
+  if type(t) ~= "table" then
+    return false
+  end
+
+  local i = 1
+  for k, _ in pairs(t) do
+    if k ~= i then
+      return false
+    end
+    i = i + 1
+  end
+
+  return true
+end
+
 local function setup(opts)
   opts = vim.tbl_deep_extend("force", defaults, opts)
 
   for server, pkgs in pairs(opts.servers) do
     if pkgs and pkgs ~= "" and not vim.tbl_contains(opts.excluded_servers, server) then
-      local config = vim.tbl_deep_extend("force", vim.lsp.config[server] or {}, overrides[server] or {})
+      local pkgs_list = is_list(pkgs) and pkgs or { pkgs }
+      local override = overrides[server]
 
-      if config ~= nil and type(config.cmd) == "table" then
-        vim.lsp.config(server, { cmd = helpers.in_shell(type(pkgs) == "string" and { pkgs } or pkgs, config.cmd, opts.channel) })
+      if type(override) == "function" then
+        override = override(pkgs_list, opts)
+      end
+
+      local config = vim.tbl_deep_extend("force", vim.lsp.config[server] or {}, override or {})
+
+      if config ~= nil then
+        local cmd = nil
+
+        if type(config.cmd) == "table" then
+          cmd = helpers.in_shell(pkgs_list, config.cmd, opts.channel)
+        else
+          vim.lsp.log.info(server .. " not supported by lazy-lsp bc cmd is of type " .. type(config.cmd))
+        end
+
+        if cmd ~= nil then
+          vim.lsp.config(server, { cmd = cmd })
+        elseif override then
+          vim.lsp.config(server, override)
+        end
       end
 
       if config ~= nil and type(config.filetypes) == "table" then

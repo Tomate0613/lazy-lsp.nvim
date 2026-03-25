@@ -318,7 +318,7 @@ return {
   sourcekit = "sourcekit-lsp",
   sourcery = "",
   spectral = "",
-  spyglassmc_language_server = "",
+  spyglassmc_language_server = { flake = "github:Tomate0613/nix-flakes/spyglassmc" },
   sqlls = "",
   standardrb = "rubyPackages.standard",
   starlark_rust = "",

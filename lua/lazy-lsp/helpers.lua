@@ -38,30 +38,34 @@ local function nix_command_available()
   return cache_nix_command_available
 end
 
----@param nix_pkgs string[]
+---@param nix_pkgs (string | { flake: string })[]
 ---@param cmd string[]
 ---@param channel string
 ---@return string[]
 local function in_shell(nix_pkgs, cmd, channel)
   if #nix_pkgs == 0 then
     error("No nix pkg provided")
-    return {}
   end
 
-  local nix_cmd = {}
-  if nix_command_available() then
-    nix_cmd = { "nix", "shell" }
-    for _, nix_pkg in ipairs(nix_pkgs) do
-      table.insert(nix_cmd, channel .. "#" .. nix_pkg)
+  local nix_cmd = { "nix", "shell" }
+
+  for _, pkg in ipairs(nix_pkgs) do
+    if type(pkg) == "string" then
+      -- normal nixpkgs package
+      table.insert(nix_cmd, channel .. "#" .. pkg)
+
+    elseif type(pkg) == "table" and pkg.flake then
+      -- flake reference
+      table.insert(nix_cmd, pkg.flake)
+
+    else
+      error("Invalid nix package entry: " .. vim.inspect(pkg))
     end
-    table.insert(nix_cmd, "--command")
-    vim.list_extend(nix_cmd, cmd)
-  else
-    nix_cmd = { "nix-shell", "-p" }
-    vim.list_extend(nix_cmd, nix_pkgs)
-    table.insert(nix_cmd, "--run")
-    table.insert(nix_cmd, escape_shell_args(cmd))
   end
+
+  table.insert(nix_cmd, "--command")
+  vim.list_extend(nix_cmd, cmd)
+
   return nix_cmd
 end
 
