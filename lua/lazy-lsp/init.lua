@@ -32,12 +32,21 @@ local function setup(opts)
     if pkgs and pkgs ~= "" and not vim.tbl_contains(opts.excluded_servers, server) then
       local pkgs_list = is_list(pkgs) and pkgs or { pkgs }
       local override = overrides[server]
+      local complete_override = false
 
       if type(override) == "function" then
         override = override(pkgs_list, opts)
+
+        if type(override) == "table" then
+          if override.complete_override == true then
+            complete_override = true
+            override = override.value
+          end
+        end
       end
 
-      local config = vim.tbl_deep_extend("force", vim.lsp.config[server] or {}, override or {})
+      local config = complete_override and override
+        or vim.tbl_deep_extend("force", vim.lsp.config[server] or {}, override or {})
 
       if config ~= nil then
         local cmd = nil
@@ -48,7 +57,7 @@ local function setup(opts)
           vim.lsp.log.info(server .. " not supported by lazy-lsp bc cmd is of type " .. type(config.cmd))
         end
 
-        if cmd ~= nil then
+        if cmd ~= nil and not complete_override then
           vim.lsp.config(server, { cmd = cmd })
         elseif override then
           vim.lsp.config(server, override)
