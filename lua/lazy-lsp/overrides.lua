@@ -167,7 +167,7 @@ return {
     return {
       complete_override = true,
       value = {
-        cmd = { "rust-analyzer" },
+        cmd = helpers.in_shell(pkgs_list, { "rust-analyzer" }, opts.channel),
         filetypes = { "rust" },
         root_dir = function(bufnr, on_dir)
           local fname = vim.api.nvim_buf_get_name(bufnr)
